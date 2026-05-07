@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vite *)",
+      "Bash(start *)",
+      "Bash(pip install *)",
+      "Bash(python3 *)",
+      "Bash(powershell.exe -Command ' *)",
+      "Bash(antiword \"D:/QQ下载/毕业论文格式模板（正文新的要求1.25倍行距）.doc\")",
+      "Bash(python *)"
+    ]
+  }
+}
