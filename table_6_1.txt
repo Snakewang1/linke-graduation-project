@@ -1,0 +1,11 @@
+类别 | 软硬件 / 工具 | 版本 / 配置
+服务器 | 阿里云 ECS ecs.g7.large | 2 vCPU / 8 GiB / Ubuntu 22.04
+数据库 | MySQL | 8.0.36，InnoDB，utf8mb4
+前端运行时 | Node.js / pnpm | 20.12 / 9.4
+桌面浏览器 | Chrome / Edge | 125 / 125
+移动测试机 | iPhone 13 / 小米 13 | iOS 17 / HyperOS 1
+Capacitor | Capacitor | 6.1（iOS + Android 双平台）
+大模型 | DeepSeek | deepseek-chat，上下文 64K
+压测工具 | k6 | 0.50，脚本化场景压测
+接口测试 | Postman + Newman | 10.24
+端到端测试 | Playwright | 1.45，Chromium / WebKit
