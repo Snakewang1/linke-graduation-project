@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { ArrowLeft, Shield, Copy, Server, Terminal, Download, Activity } from "lucide-react";
+import { api } from "../api/client";
 
 const PULL_MOCK_DATA = {
-  ec: {
-    title: "SKU-A001 防晒霜库存低于安全阈值 (50件)",
-    raw: `{"code":200,"data":{"orders":[{"id":"DD20240506","status":"待发货","amount":12800,"customer":"华东分销中心"}],"total":1,"ts":"2024-05-06T10:30:00Z"}}`,
-  },
   erp: {
     title: "库存预警: 核心仓物料 SKU-001 低于安全库存",
     raw: `{"code":200,"data":{"sku":"SKU-001","current":42,"safe":50,"warehouse":"核心仓","suggest":"建议立即发起采购申请"}}`,
+  },
+  finance: {
+    title: "待审批报销单 #BX202403: 差旅费 ¥3,200",
+    raw: `{"code":200,"data":{"bills":[{"id":"BX202403","amount":3200,"type":"差旅","applicant":"李专员"}]}}`,
   },
   oa: {
     title: "研发部李工提交年假申请（3天）待审批",
@@ -20,20 +21,23 @@ const PULL_MOCK_DATA = {
   },
 };
 
-export default function ApiConsole({ onBack, onPushTodo }) {
+export default function ApiConsole({ onBack, onPushTodo, integrations }) {
+  const integrationMap = {};
+  integrations.forEach((i) => { integrationMap[i.id] = i; });
+
   const [apiInputs, setApiInputs] = useState({
-    ec: "天猫双11新增大额订单待发货审核",
     erp: "核心仓物料 SKU-001 低于安全库存",
+    finance: "差旅报销单 #BX202403 金额 ¥3,200",
     oa: "研发部李工提交年假申请（3天）",
     crm: "华东区新客户明辉科技合同待评审 ¥280,000",
   });
   const [apiEndpoints, setApiEndpoints] = useState({
-    ec: "POST /v1/orders/sync",
     erp: "POST /v1/erp/webhook",
+    finance: "POST /v1/finance/webhook",
     oa: "POST /v1/oa/approval/webhook",
     crm: "POST /v1/crm/opportunity/webhook",
   });
-  const [apiDirections, setApiDirections] = useState({ ec: "push", erp: "push", oa: "push", crm: "push" });
+  const [apiDirections, setApiDirections] = useState({ erp: "push", finance: "push", oa: "push", crm: "push" });
   const [webhookLogs, setWebhookLogs] = useState([]);
 
   const addLog = (direction, source, endpoint, payload, status) => {
@@ -51,17 +55,23 @@ export default function ApiConsole({ onBack, onPushTodo }) {
     ]);
   };
 
-  const simulateApiCall = (source, title, endpoint, direction) => {
+  const simulateApiCall = async (integrationId, source, title, endpoint, direction) => {
     if (direction === "push") {
       if (!title.trim() || !endpoint.trim()) return alert("推送内容或接口路径不能为空！");
-      onPushTodo(source, title);
-      addLog("push", source, endpoint, title, "success");
-      alert(
-        `请求成功 (200 OK)！\n[${source}] 成功调用了接口：\n👉 ${endpoint}\n\n推送的数据内容为：\n"${title}"\n\n请前往"协同待办"模块查看最新任务流转。`
-      );
+      try {
+        await api.post(`/integrations/${integrationId}/push`, { payload: title });
+        addLog("push", source, endpoint, title, "success");
+        if (onPushTodo) onPushTodo(source, title);
+        alert(
+          `请求成功 (200 OK)！\n[${source}] 成功调用了接口：\n👉 ${endpoint}\n\n推送的数据内容为：\n"${title}"\n\n请前往"协同待办"模块查看最新任务流转。`
+        );
+      } catch {
+        addLog("push", source, endpoint, title, "error");
+        alert("推送失败，请检查后端服务是否运行。");
+      }
     } else {
-      // Pull mode
       addLog("pull", source, endpoint, title.slice(0, 40), "success");
+      await new Promise((r) => setTimeout(r, 300));
       alert(
         `拉取成功 (200 OK)！\n[${source}] 成功拉取了数据：\n👉 ${endpoint}\n\n返回数据：\n"${title}"`
       );
@@ -108,21 +118,22 @@ export default function ApiConsole({ onBack, onPushTodo }) {
         <div className="grid md:grid-cols-2 gap-4 md:gap-6">
           <ApiCard
             color="bg-orange-500"
-            label="电商平台集成"
-            endpoint={apiEndpoints.ec}
-            onEndpointChange={(v) => setApiEndpoints({ ...apiEndpoints, ec: v })}
-            payloadLabel="订单待办内容 (Payload)"
-            payload={apiInputs.ec}
-            onPayloadChange={(v) => setApiInputs({ ...apiInputs, ec: v })}
-            direction={apiDirections.ec}
-            onToggleDirection={(d) => setApiDirections({ ...apiDirections, ec: d })}
-            pullData={PULL_MOCK_DATA.ec}
+            label="财务系统集成"
+            endpoint={apiEndpoints.finance}
+            onEndpointChange={(v) => setApiEndpoints({ ...apiEndpoints, finance: v })}
+            payloadLabel="报销内容 (Payload)"
+            payload={apiInputs.finance}
+            onPayloadChange={(v) => setApiInputs({ ...apiInputs, finance: v })}
+            direction={apiDirections.finance}
+            onToggleDirection={(d) => setApiDirections({ ...apiDirections, finance: d })}
+            pullData={PULL_MOCK_DATA.finance}
             onSend={() =>
               simulateApiCall(
-                "电商中台",
-                apiDirections.ec === "push" ? apiInputs.ec : PULL_MOCK_DATA.ec.title,
-                apiEndpoints.ec,
-                apiDirections.ec
+                "finance",
+                "金蝶云财务",
+                apiDirections.finance === "push" ? apiInputs.finance : PULL_MOCK_DATA.finance.title,
+                apiEndpoints.finance,
+                apiDirections.finance
               )
             }
             buttonColor="bg-orange-500 hover:bg-orange-600"
@@ -140,6 +151,7 @@ export default function ApiConsole({ onBack, onPushTodo }) {
             pullData={PULL_MOCK_DATA.erp}
             onSend={() =>
               simulateApiCall(
+                "erp",
                 "SAP ERP",
                 apiDirections.erp === "push" ? apiInputs.erp : PULL_MOCK_DATA.erp.title,
                 apiEndpoints.erp,
@@ -161,6 +173,7 @@ export default function ApiConsole({ onBack, onPushTodo }) {
             pullData={PULL_MOCK_DATA.oa}
             onSend={() =>
               simulateApiCall(
+                "oa",
                 "泛微 OA",
                 apiDirections.oa === "push" ? apiInputs.oa : PULL_MOCK_DATA.oa.title,
                 apiEndpoints.oa,
@@ -182,6 +195,7 @@ export default function ApiConsole({ onBack, onPushTodo }) {
             pullData={PULL_MOCK_DATA.crm}
             onSend={() =>
               simulateApiCall(
+                "crm",
                 "Salesforce CRM",
                 apiDirections.crm === "push" ? apiInputs.crm : PULL_MOCK_DATA.crm.title,
                 apiEndpoints.crm,

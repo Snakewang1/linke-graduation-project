@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Loader2, Sparkles, CheckCircle2, Clock, Circle, ClipboardList } from "lucide-react";
-import { callDeepSeek, formatContent } from "../api/deepseek";
+import { formatContent } from "../api/deepseek";
+import { api } from "../api/client";
 
 const STATUS_CONFIG = {
   pending:    { label: "待处理",   dot: "bg-orange-400",      bg: "bg-orange-50 text-orange-600",   icon: Circle },
@@ -50,29 +51,29 @@ function EmptyState({ icon: Icon, title, description, actionLabel, onAction }) {
   );
 }
 
-export default function TodoList({ todos, setTodos, apiKey, role }) {
+export default function TodoList({ todos, setTodos, role }) {
   const [filter, setFilter] = useState("pending");
   const [aiSummary, setAiSummary] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleStatusChange = (id, newStatus) => {
+  const handleStatusChange = async (id, newStatus) => {
     setTodos((prev) =>
       prev.map((t) => (t.id === id ? { ...t, status: newStatus } : t))
     );
+    // Sync to server
+    try {
+      await api.patch(`/todos/${id}/status`, { status: newStatus });
+    } catch { /* local state already updated */ }
   };
 
   const generateSummary = async () => {
     setLoading(true);
-    const tasks = todos
-      .filter((t) => t.status === "pending")
-      .map((t) => t.title)
-      .join(", ");
-    const res = await callDeepSeek({
-      prompt: `请汇总这些待办任务并给出核心建议：${tasks}。`,
-      apiKey,
-      role,
-    });
-    setAiSummary(res);
+    try {
+      const data = await api.post("/ai/summary", {});
+      setAiSummary(data.summary);
+    } catch {
+      setAiSummary("AI 摘要生成失败，请检查后端服务。");
+    }
     setLoading(false);
   };
 

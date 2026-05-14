@@ -1,20 +1,24 @@
 import { useState, useEffect } from "react";
-import { ChevronRight, Key, Code } from "lucide-react";
-import { MOCK_DB } from "../data/mock";
+import { ChevronRight, Code, LogOut } from "lucide-react";
+import { api } from "../api/client";
 import ApiConsole from "./ApiConsole";
 
-export default function Profile({ role, setRole, user, onPushTodo, apiKey, setApiKey }) {
+export default function Profile({ user, onPushTodo, onLogout }) {
   const [showApiConsole, setShowApiConsole] = useState(false);
+  const [integrations, setIntegrations] = useState([]);
 
   useEffect(() => {
-    if (role !== "admin") setShowApiConsole(false);
-  }, [role]);
+    api.get("/integrations")
+      .then((data) => setIntegrations(data.integrations || []))
+      .catch(() => {});
+  }, []);
 
-  if (showApiConsole && role === "admin") {
+  if (showApiConsole && user.role === "admin") {
     return (
       <ApiConsole
         onBack={() => setShowApiConsole(false)}
         onPushTodo={onPushTodo}
+        integrations={integrations}
       />
     );
   }
@@ -31,63 +35,61 @@ export default function Profile({ role, setRole, user, onPushTodo, apiKey, setAp
         <div>
           <h3 className="font-bold text-xl md:text-2xl text-slate-800">{user.name}</h3>
           <p className="text-sm text-slate-500 mt-1">
-            {user.dept} · {role === "admin" ? "系统管理员" : "普通员工"}
+            {user.dept} · {user.role === "admin" ? "系统管理员" : "普通员工"}
           </p>
         </div>
       </div>
 
-      {/* Role switch + API config */}
+      {/* Account info + Logout */}
       <div className="grid md:grid-cols-2 gap-8 md:gap-6">
         <div className="space-y-4">
           <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">
-            角色切换演示
+            账户信息
           </h4>
-          <div className="bg-white rounded-2xl p-1.5 flex border border-slate-200 shadow-sm">
-            <button
-              onClick={() => setRole("admin")}
-              className={`flex-1 py-3.5 rounded-xl text-sm font-bold transition-all ${
-                role === "admin"
-                  ? "bg-blue-600 text-white shadow-md"
-                  : "text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              管理者视角
-            </button>
-            <button
-              onClick={() => setRole("staff")}
-              className={`flex-1 py-3.5 rounded-xl text-sm font-bold transition-all ${
-                role === "staff"
-                  ? "bg-blue-600 text-white shadow-md"
-                  : "text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              员工视角
-            </button>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+            <div>
+              <span className="text-xs text-slate-400">邮箱</span>
+              <p className="text-sm font-bold text-slate-700">{user.email}</p>
+            </div>
+            <div>
+              <span className="text-xs text-slate-400">角色</span>
+              <p className="text-sm font-bold text-slate-700">
+                {user.role === "admin" ? "系统管理员（全部权限）" : "普通员工（受限权限）"}
+              </p>
+            </div>
           </div>
         </div>
 
         <div className="space-y-4">
           <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">
-            AI 模型接入配置
+            AI 模型配置
           </h4>
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
             <div className="flex items-center gap-2">
-              <Key size={16} className="text-blue-500" />
-              <label className="text-sm font-bold text-slate-700">DeepSeek API Key</label>
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+              <span className="text-sm font-bold text-slate-700">DeepSeek API</span>
             </div>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm outline-none focus:bg-white focus:border-blue-500 transition-colors shadow-inner"
-              placeholder="输入 sk- 开头的 API Key"
-            />
+            <p className="text-xs text-slate-500">
+              API Key 已配置在服务端，无需在浏览器中输入。所有 AI 请求通过后端代理，保证密钥安全。
+            </p>
           </div>
         </div>
       </div>
 
+      {/* Logout */}
+      <div className="space-y-4">
+        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">操作</h4>
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-2 px-5 py-3 bg-white border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors"
+        >
+          <LogOut size={16} />
+          退出登录
+        </button>
+      </div>
+
       {/* OpenAPI entry (admin only) */}
-      {role === "admin" && (
+      {user.role === "admin" && (
         <div
           onClick={() => setShowApiConsole(true)}
           className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-5 md:p-6 rounded-3xl flex items-center justify-between shadow-xl cursor-pointer hover:shadow-2xl hover:-translate-y-1 transition-all group"
@@ -115,7 +117,7 @@ export default function Profile({ role, setRole, user, onPushTodo, apiKey, setAp
           系统连接状态
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {MOCK_DB.integrations.map((sys) => (
+          {integrations.map((sys) => (
             <div
               key={sys.id}
               className="flex justify-between items-center bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-colors"

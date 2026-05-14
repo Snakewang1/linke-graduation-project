@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from "react";
 import {
   LayoutDashboard, CheckSquare, MessageSquare, Settings, Briefcase,
 } from "lucide-react";
-import { MOCK_DB } from "./data/mock";
 import Workbench from "./components/Workbench";
 import Messages from "./components/Messages";
 import TodoList from "./components/TodoList";
 import Profile from "./components/Profile";
+import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { api, clearToken, setToken } from "./api/client";
 
 const NAV_ITEMS = [
   { id: "messages",  icon: MessageSquare,    label: "消息" },
@@ -16,81 +17,102 @@ const NAV_ITEMS = [
   { id: "profile",   icon: Settings,         label: "设置" },
 ];
 
-const getStoredApiKey = () => {
-  try {
-    return localStorage.getItem("deepseek_api_key") || "";
-  } catch {
-    return "";
-  }
-};
-
-function deepCloneMessages(list) {
-  return list.map((m) => ({ ...m, history: m.history.map((h) => ({ ...h })) }));
-}
-
 export default function App() {
   const [tab, setTab] = useState("workbench");
-  const [role, setRole] = useState("admin");
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [todos, setTodos] = useState(MOCK_DB.todos);
-  const [messages, setMessages] = useState(() => deepCloneMessages(MOCK_DB.messages));
-  const [apiKey, setApiKey] = useState(getStoredApiKey);
+  const [todos, setTodos] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [authChecking, setAuthChecking] = useState(true);
 
   const unreadCount = useMemo(
     () => messages.reduce((sum, m) => sum + (m.unread || 0), 0),
     [messages]
   );
 
-  // Persist API key
+  // Check auth on mount
   useEffect(() => {
-    try {
-      localStorage.setItem("deepseek_api_key", apiKey);
-    } catch { /* noop */ }
-  }, [apiKey]);
-
-  // Simulate startup loading
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 1200);
-    return () => clearTimeout(t);
+    const token = localStorage.getItem("linke_token");
+    if (!token) {
+      setAuthChecking(false);
+      setLoading(false);
+      return;
+    }
+    api.get("/auth/me")
+      .then((data) => {
+        setUser(data.user);
+        setAuthChecking(false);
+        // Fetch data
+        return Promise.all([
+          api.get("/todos"),
+          api.get("/messages"),
+        ]);
+      })
+      .then(([todoData, msgData]) => {
+        if (todoData) setTodos(todoData.todos || []);
+        if (msgData) setMessages(msgData.threads || []);
+        setLoading(false);
+      })
+      .catch(() => {
+        clearToken();
+        setAuthChecking(false);
+        setLoading(false);
+      });
   }, []);
 
-  const user = MOCK_DB.users[role];
-
-  // Combined push: creates both a todo and a notification message
-  const handlePushTodo = (source, title) => {
-    const now = new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
-    const newTodo = {
-      id: Date.now(),
-      source,
-      title,
-      type: "业务推送",
-      priority: "high",
-      time: now,
-      status: "pending",
-    };
-    setTodos((prev) => [newTodo, ...prev]);
-
-    const notifyMsg = {
-      id: Date.now() + 100,
-      type: "bot",
-      name: `${source} 通知`,
-      content: `新待办：${title}`,
-      time: now,
-      unread: 1,
-      avatarText: "推",
-      color: "bg-purple-500",
-      history: [
-        {
-          id: 1,
-          sender: "other",
-          type: "text",
-          content: `系统推送了一条新待办任务：\n\n${title}\n来源：${source}\n时间：${now}\n\n请前往“协同待办”查看详情。`,
-          time: now,
-        },
-      ],
-    };
-    setMessages((prev) => [notifyMsg, ...prev]);
+  const handleLogin = (loggedInUser) => {
+    setUser(loggedInUser);
+    setLoading(true);
+    // Fetch initial data
+    Promise.all([
+      api.get("/todos"),
+      api.get("/messages"),
+    ])
+      .then(([todoData, msgData]) => {
+        setTodos(todoData.todos || []);
+        setMessages(msgData.threads || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   };
+
+  const handleLogout = () => {
+    clearToken();
+    setUser(null);
+  };
+
+  const handlePushTodo = async (source, title) => {
+    try {
+      await api.post("/todos", { source, title, type: "业务推送", priority: "high" });
+      // Refresh todos
+      const data = await api.get("/todos");
+      setTodos(data.todos || []);
+      // Refresh messages
+      const msgData = await api.get("/messages");
+      setMessages(msgData.threads || []);
+    } catch {
+      // Fallback: local update
+      const now = new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
+      const newTodo = {
+        id: Date.now(), source, title, type: "业务推送", priority: "high", time: now, status: "pending",
+      };
+      setTodos((prev) => [newTodo, ...prev]);
+    }
+  };
+
+  /* ---- auth checking screen ---- */
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  /* ---- login screen ---- */
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   /* ---- loading screen ---- */
   if (loading) {
@@ -155,17 +177,14 @@ export default function App() {
       <main className="flex-1 h-screen overflow-y-auto scroll-smooth">
         <div className="w-full max-w-7xl mx-auto p-5 md:p-10 lg:p-12 pb-28 md:pb-12">
           <ErrorBoundary>
-            {tab === "workbench" && <Workbench role={role} user={user} />}
-            {tab === "messages" && <Messages apiKey={apiKey} messages={messages} setMessages={setMessages} role={role} />}
-            {tab === "todo" && <TodoList todos={todos} setTodos={setTodos} apiKey={apiKey} role={role} />}
+            {tab === "workbench" && <Workbench role={user.role} user={user} />}
+            {tab === "messages" && <Messages messages={messages} setMessages={setMessages} role={user.role} />}
+            {tab === "todo" && <TodoList todos={todos} setTodos={setTodos} role={user.role} />}
             {tab === "profile" && (
               <Profile
-                role={role}
-                setRole={setRole}
                 user={user}
                 onPushTodo={handlePushTodo}
-                apiKey={apiKey}
-                setApiKey={setApiKey}
+                onLogout={handleLogout}
               />
             )}
           </ErrorBoundary>

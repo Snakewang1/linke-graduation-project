@@ -3,20 +3,29 @@ import {
   MessageSquare, ArrowLeft, MoreHorizontal, Plus, Sparkles,
   Loader2, Send, File, Bot, Users, Inbox,
 } from "lucide-react";
-import { callDeepSeek, formatContent } from "../api/deepseek";
+import { formatContent } from "../api/deepseek";
+import { api } from "../api/client";
 
-export default function Messages({ apiKey, messages, setMessages, role }) {
+export default function Messages({ messages, setMessages, role }) {
   const [activeChat, setActiveChat] = useState(null);
   // Local mutable copies so we never mutate the source data
   const [chatHistories, setChatHistories] = useState({});
 
-  const openChat = (msg) => {
+  const openChat = async (msg) => {
     setActiveChat(msg);
     if (!chatHistories[msg.id]) {
-      setChatHistories((prev) => ({
-        ...prev,
-        [msg.id]: msg.history.map((m) => ({ ...m })),
-      }));
+      try {
+        const data = await api.get(`/messages/${msg.id}/history`);
+        setChatHistories((prev) => ({
+          ...prev,
+          [msg.id]: (data.history || []).map((m) => ({ ...m })),
+        }));
+      } catch {
+        setChatHistories((prev) => ({
+          ...prev,
+          [msg.id]: [],
+        }));
+      }
     }
     // Mark as read
     setMessages((prev) =>
@@ -89,7 +98,6 @@ export default function Messages({ apiKey, messages, setMessages, role }) {
         <ChatView
           chat={activeChat}
           history={chatHistories[activeChat.id] || []}
-          apiKey={apiKey}
           role={role}
           onClose={closeChat}
           onUpdateHistory={(updater) => updateHistory(activeChat.id, updater)}
@@ -102,7 +110,7 @@ export default function Messages({ apiKey, messages, setMessages, role }) {
 /* ================================================================
    ChatView — full chat panel (modal on desktop, fullscreen on mobile)
    ================================================================ */
-function ChatView({ chat, history, apiKey, role, onClose, onUpdateHistory }) {
+function ChatView({ chat, history, role, onClose, onUpdateHistory }) {
   const [inputText, setInputText] = useState("");
   const [isPolishing, setIsPolishing] = useState(false);
   const [isAiThinking, setIsAiThinking] = useState(false);
@@ -129,25 +137,26 @@ function ChatView({ chat, history, apiKey, role, onClose, onUpdateHistory }) {
       ]);
       setIsAiThinking(true);
 
-      // Build conversation history (all non-temp, non-system messages)
-      const messageHistory = history
-        .filter((m) => m.type === "text" && !m.isTemp)
-        .map((m) => ({
-          role: m.sender === "self" ? "user" : "assistant",
-          content: m.content,
-        }));
+      try {
+        const messageHistory = history
+          .filter((m) => m.type === "text" && !m.isTemp)
+          .map((m) => ({
+            role: m.sender === "self" ? "user" : "assistant",
+            content: m.content,
+          }));
 
-      const aiReply = await callDeepSeek({
-        prompt: text,
-        apiKey,
-        role,
-        history: messageHistory,
-      });
+        const data = await api.post("/ai/chat", { prompt: text, history: messageHistory });
 
-      onUpdateHistory((prev) => [
-        ...prev.filter((m) => m.id !== tempId),
-        { id: Date.now() + 2, sender: "other", type: "text", content: aiReply, time: "刚刚" },
-      ]);
+        onUpdateHistory((prev) => [
+          ...prev.filter((m) => m.id !== tempId),
+          { id: Date.now() + 2, sender: "other", type: "text", content: data.reply, time: "刚刚" },
+        ]);
+      } catch {
+        onUpdateHistory((prev) => [
+          ...prev.filter((m) => m.id !== tempId),
+          { id: Date.now() + 2, sender: "other", type: "text", content: "AI 服务暂时不可用，请检查后端配置。", time: "刚刚" },
+        ]);
+      }
       setIsAiThinking(false);
     }
   };
@@ -162,8 +171,10 @@ function ChatView({ chat, history, apiKey, role, onClose, onUpdateHistory }) {
   const handlePolish = async () => {
     if (!inputText.trim()) return;
     setIsPolishing(true);
-    const polished = await callDeepSeek(`请专业润色以下内容：${inputText}`, apiKey);
-    setInputText(polished);
+    try {
+      const data = await api.post("/ai/chat", { prompt: `请专业润色以下内容，只返回润色后的文本，不要加任何解释：${inputText}`, history: [] });
+      setInputText(data.reply);
+    } catch { /* keep original text */ }
     setIsPolishing(false);
   };
 
@@ -230,7 +241,7 @@ function ChatView({ chat, history, apiKey, role, onClose, onUpdateHistory }) {
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
               type="text"
-              placeholder="输入消息..."
+              placeholder={chat.id === 11 ? "向 AI 助手提问..." : "输入消息..."}
               className="bg-transparent w-full outline-none text-sm md:text-base text-slate-700"
             />
             {inputText && !isAiThinking && (
