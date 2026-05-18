@@ -4,7 +4,7 @@ import {
   Loader2, Send, File, Bot, Users, Inbox,
 } from "lucide-react";
 import { formatContent } from "../api/deepseek";
-import { api } from "../api/client";
+import { api } from "../api/client-firebase";
 
 export default function Messages({ messages, setMessages, role }) {
   const [activeChat, setActiveChat] = useState(null);

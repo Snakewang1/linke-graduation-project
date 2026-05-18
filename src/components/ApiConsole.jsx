@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowLeft, Shield, Copy, Server, Terminal, Download, Activity } from "lucide-react";
-import { api } from "../api/client";
+import { api } from "../api/client-firebase";
 
 const PULL_MOCK_DATA = {
   erp: {

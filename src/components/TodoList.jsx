@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Loader2, Sparkles, CheckCircle2, Clock, Circle, ClipboardList } from "lucide-react";
 import { formatContent } from "../api/deepseek";
-import { api } from "../api/client";
+import { api } from "../api/client-firebase";
 
 const STATUS_CONFIG = {
   pending:    { label: "待处理",   dot: "bg-orange-400",      bg: "bg-orange-50 text-orange-600",   icon: Circle },

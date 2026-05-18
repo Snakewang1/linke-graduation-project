@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ChevronRight, Code, LogOut } from "lucide-react";
-import { api } from "../api/client";
+import { api } from "../api/client-firebase";
 import ApiConsole from "./ApiConsole";
 
 export default function Profile({ user, onPushTodo, onLogout }) {

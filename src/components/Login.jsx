@@ -1,19 +1,12 @@
 import { useState } from "react";
 import { Briefcase, Mail, Lock, Loader2, Server, ChevronDown } from "lucide-react";
-import { api, setToken, getServerUrl, setServerUrl } from "../api/client";
+import { login } from "../firebase/auth";
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState("admin@linke.com");
   const [password, setPassword] = useState("admin123");
-  const [server, setServer] = useState(getServerUrl());
-  const [showServer, setShowServer] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const handleServerChange = (value) => {
-    setServer(value);
-    setServerUrl(value);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,11 +14,16 @@ export default function Login({ onLogin }) {
     setLoading(true);
 
     try {
-      const data = await api.post("/auth/login", { email, password });
-      setToken(data.token);
-      onLogin(data.user);
+      const result = await login(email, password);
+      onLogin(result.user);
     } catch (err) {
-      setError(err.message || "登录失败，请重试");
+      if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found") {
+        setError("邮箱或密码错误");
+      } else if (err.code === "auth/too-many-requests") {
+        setError("登录尝试过于频繁，请稍后再试");
+      } else {
+        setError(err.message || "登录失败，请重试");
+      }
     } finally {
       setLoading(false);
     }
@@ -40,6 +38,9 @@ export default function Login({ onLogin }) {
           </div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">领客协同 LinkE</h1>
           <p className="text-slate-500 text-sm mt-1">企业数字化协同平台</p>
+          <span className="inline-block mt-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full">
+            Firebase 云原生版
+          </span>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
@@ -77,27 +78,6 @@ export default function Login({ onLogin }) {
             <p className="text-red-500 text-xs bg-red-50 px-3 py-2 rounded-lg">{error}</p>
           )}
 
-          {/* Server config toggle */}
-          <button
-            type="button"
-            onClick={() => setShowServer(!showServer)}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <Server size={12} />
-            服务器地址
-            <ChevronDown size={12} className={showServer ? "rotate-180" : ""} />
-          </button>
-
-          {showServer && (
-            <input
-              type="text"
-              value={server}
-              onChange={(e) => handleServerChange(e.target.value)}
-              placeholder="http://192.168.x.x:3001/api"
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
-            />
-          )}
-
           <button
             type="submit"
             disabled={loading}
@@ -111,7 +91,7 @@ export default function Login({ onLogin }) {
         <p className="text-center text-xs text-slate-400 mt-6">
           演示账号：admin@linke.com / admin123
           <br />
-          当前服务器：{server === "/api" ? "Vite 代理（开发模式）" : server}
+          由 Firebase Auth + Firestore 驱动
         </p>
       </div>
     </div>

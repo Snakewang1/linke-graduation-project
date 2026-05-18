@@ -8,7 +8,8 @@ import TodoList from "./components/TodoList";
 import Profile from "./components/Profile";
 import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { api, clearToken, setToken } from "./api/client";
+import { api } from "./api/client-firebase";
+import { logout, onAuthChange } from "./firebase/auth";
 
 const NAV_ITEMS = [
   { id: "messages",  icon: MessageSquare,    label: "消息" },
@@ -30,40 +31,33 @@ export default function App() {
     [messages]
   );
 
-  // Check auth on mount
+  // Listen to Firebase Auth state
   useEffect(() => {
-    const token = localStorage.getItem("linke_token");
-    if (!token) {
+    const unsub = onAuthChange(async (fbUser) => {
       setAuthChecking(false);
-      setLoading(false);
-      return;
-    }
-    api.get("/auth/me")
-      .then((data) => {
-        setUser(data.user);
-        setAuthChecking(false);
-        // Fetch data
-        return Promise.all([
-          api.get("/todos"),
-          api.get("/messages"),
-        ]);
-      })
-      .then(([todoData, msgData]) => {
-        if (todoData) setTodos(todoData.todos || []);
-        if (msgData) setMessages(msgData.threads || []);
+      if (fbUser) {
+        setUser(fbUser);
+        setLoading(true);
+        try {
+          const [todoData, msgData] = await Promise.all([
+            api.get("/todos"),
+            api.get("/messages"),
+          ]);
+          setTodos(todoData.todos || []);
+          setMessages(msgData.threads || []);
+        } catch {}
         setLoading(false);
-      })
-      .catch(() => {
-        clearToken();
-        setAuthChecking(false);
+      } else {
+        setUser(null);
         setLoading(false);
-      });
+      }
+    });
+    return () => unsub();
   }, []);
 
   const handleLogin = (loggedInUser) => {
     setUser(loggedInUser);
     setLoading(true);
-    // Fetch initial data
     Promise.all([
       api.get("/todos"),
       api.get("/messages"),
@@ -76,8 +70,8 @@ export default function App() {
       .finally(() => setLoading(false));
   };
 
-  const handleLogout = () => {
-    clearToken();
+  const handleLogout = async () => {
+    await logout();
     setUser(null);
   };
 
