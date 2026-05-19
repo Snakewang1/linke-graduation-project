@@ -68,6 +68,18 @@ export default function TodoList({ todos, setTodos, role, workflows, onTodoCompl
     if (newStatus === "done" && onTodoComplete) {
       onTodoComplete(id);
     }
+
+    // OA 审批结果通知申请人
+    const todo = todos.find((t) => t.id === id);
+    if (todo?.oaType && (newStatus === "done" || newStatus === "pending")) {
+      const verb = newStatus === "done" ? "已批准" : "已驳回";
+      const brief = todo.title.length > 40 ? todo.title.slice(0, 40) + "..." : todo.title;
+      api.post("/notify-user", {
+        userId: todo.requestedBy,
+        content: `${brief} ${verb}。`,
+        tag: "OA审批",
+      }).catch(() => {});
+    }
   };
 
   const generateSummary = async () => {

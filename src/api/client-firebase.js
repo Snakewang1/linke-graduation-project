@@ -313,45 +313,48 @@ async function saveWorkflow(workflow) {
   return { workflow };
 }
 
-// ── Notifications (推给 admin) ──
+// ── Notifications ──
 
-async function notifyAdmin(content, tag) {
-  // 查找 admin 的 uid
-  let adminUid = null;
+async function getAdminUid() {
   try {
     const adminUser = await getDocs(query(collection(db, "users"), where("role", "==", "admin")));
-    if (!adminUser.empty) adminUid = adminUser.docs[0].id;
+    if (!adminUser.empty) return adminUser.docs[0].id;
   } catch {}
-  if (!adminUid) return { sent: false };
+  return null;
+}
 
-  // 写入共享通知线程
-  const threadRef = doc(db, "messageThreads", "notifications");
+async function notifyUser(userId, content, tag) {
+  if (!userId) return { sent: false };
+
+  const threadId = `notify-${userId}`;
+  const threadRef = doc(db, "messageThreads", threadId);
   const threadSnap = await getDoc(threadRef);
+  const now = new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
+
   if (!threadSnap.exists()) {
     await setDoc(threadRef, {
       type: "bot",
-      name: "LinkE 流程引擎",
+      name: "LinkE 通知中心",
       color: "bg-purple-600",
       tag: tag || "系统",
-      pinned: true,
-      participants: [adminUid],
-      unreadBy: { [adminUid]: 1 },
+      pinned: false,
+      participants: [userId],
+      unreadBy: { [userId]: 1 },
       lastContent: content.slice(0, 80),
-      lastTime: new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" }),
+      lastTime: now,
       updatedAt: serverTimestamp(),
     });
   } else {
     const data = threadSnap.data();
     await updateDoc(threadRef, {
       lastContent: content.slice(0, 80),
-      lastTime: new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" }),
+      lastTime: now,
       updatedAt: serverTimestamp(),
-      [`unreadBy.${adminUid}`]: (data.unreadBy?.[adminUid] || 0) + 1,
+      [`unreadBy.${userId}`]: (data.unreadBy?.[userId] || 0) + 1,
     });
   }
 
-  // 写入消息历史
-  await addDoc(collection(db, "messageThreads", "notifications", "messages"), {
+  await addDoc(collection(db, "messageThreads", threadId, "messages"), {
     senderId: null,
     senderType: "other",
     senderName: null,
@@ -361,6 +364,12 @@ async function notifyAdmin(content, tag) {
   });
 
   return { sent: true };
+}
+
+async function notifyAdmin(content, tag) {
+  const adminUid = await getAdminUid();
+  if (!adminUid) return { sent: false };
+  return notifyUser(adminUid, content, tag);
 }
 
 // ── Unified API object ──
@@ -397,6 +406,8 @@ export const api = {
 
   async post(path, body) {
     if (path === "/notify-admin") return notifyAdmin(body?.content, body?.tag);
+    if (path === "/notify-user") return notifyUser(body?.userId, body?.content, body?.tag);
+    if (path === "/admin-uid") return { uid: await getAdminUid() };
     if (path === "/workflows") return saveWorkflow(body);
     if (path === "/todos") return createTodo(body || {});
     if (path === "/ai/chat") return aiChat(body?.prompt, body?.history || []);

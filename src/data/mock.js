@@ -19,9 +19,9 @@ export const MOCK_DB = {
   todos: [
     { id: 101, source: "ERP系统", title: "Q3季度原材料采购审批",          type: "审批", priority: "high",   time: "10:30", status: "pending" },
     { id: 102, source: "财务云", title: "差旅报销单 #BX202403 签字",       type: "签字", priority: "medium", time: "11:00", status: "pending" },
-    { id: 103, source: "OA系统", title: "研发部李工提交年假申请（3天）",    type: "审批", priority: "medium", time: "09:45", status: "pending" },
+    { id: 103, source: "OA系统", title: "[OA审批] 请假申请：李专员，年假 3天（6月1日-6月3日）", type: "OA审批", priority: "high", time: "09:45", status: "pending", requestedBy: "U009", requestedByName: "李专员", oaType: "leave" },
     { id: 105, source: "CRM系统", title: "华东区新客户「明辉科技」合同评审",  type: "审批", priority: "high",   time: "08:30", status: "pending" },
-    { id: 106, source: "OA系统", title: "周五下午3点A301会议室预定申请",    type: "预定", priority: "low",    time: "14:00", status: "processing" },
+    { id: 106, source: "OA系统", title: "[OA审批] 会议室预定：李专员，周五15:00 A301", type: "OA审批", priority: "high", time: "14:00", status: "processing", requestedBy: "U009", requestedByName: "李专员", oaType: "meeting" },
     { id: 107, source: "CRM系统", title: "跟进线索：张经理-企业采购意向",    type: "任务", priority: "medium", time: "16:00", status: "pending" },
     { id: 104, source: "内部OA", title: "填写本周工作周报",                 type: "任务", priority: "low",    time: "17:00", status: "done" },
   ],

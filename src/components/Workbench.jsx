@@ -203,12 +203,19 @@ export default function Workbench({ role, user, onStartWorkflow, onCreateTodo, w
       if (workflow && onStartWorkflow) {
         onStartWorkflow(workflow.id, filled);
       } else if (onCreateTodo) {
+        const isOA = appId === 'oa';
+        const fieldSummary = Object.entries(filled).map(([k, v]) => `${k}: ${v}`).join(", ");
         onCreateTodo({
           source: appIdToSystemName(appId),
-          title: `[${data.title}] ${Object.entries(filled).map(([k, v]) => `${k}: ${v}`).join(", ")}`,
-          type: "表单提交",
-          priority: "medium",
+          title: isOA
+            ? `[OA审批] ${data.title}ÿ1a${user.name}ÿ0c${fieldSummary}`
+            : `[${data.title}] ${fieldSummary}`,
+          type: isOA ? "OA审批" : "表单提交",
+          priority: isOA ? "high" : "medium",
           system: appId,
+          requestedBy: isOA ? user.id : null,
+          requestedByName: isOA ? user.name : null,
+          oaType: isOA ? data.id : null,
         });
       }
 

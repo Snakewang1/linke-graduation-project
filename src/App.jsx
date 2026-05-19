@@ -77,7 +77,7 @@ export default function App() {
         .catch(() => {})
         .finally(() => setLoading(false));
     } else {
-      setTodos([]);
+      setTodos(MOCK_DB.todos);
       setMessages(MOCK_DB.messages);
       setLoading(false);
     }
@@ -125,6 +125,9 @@ export default function App() {
       time: now,
       status: "pending",
       system: todoData.system || null,
+      requestedBy: todoData.requestedBy || null,
+      requestedByName: todoData.requestedByName || null,
+      oaType: todoData.oaType || null,
     };
     setTodos((prev) => [newTodo, ...prev]);
     api.post("/todos", newTodo).catch(() => {});
