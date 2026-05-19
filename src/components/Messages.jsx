@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   MessageSquare, ArrowLeft, MoreHorizontal, Plus, Sparkles,
-  Loader2, Send, File, Bot, Users, Inbox,
+  Loader2, Send, File, Bot, Users, Inbox, X,
 } from "lucide-react";
 import { formatContent } from "../api/deepseek";
 import { api } from "../api/client-firebase";
 
-export default function Messages({ messages, setMessages, role }) {
+export default function Messages({ messages, setMessages, role, onDeleteThread }) {
   const [activeChat, setActiveChat] = useState(null);
   // Local mutable copies so we never mutate the source data
   const [chatHistories, setChatHistories] = useState({});
@@ -88,6 +88,15 @@ export default function Messages({ messages, setMessages, role }) {
               {msg.unread > 0 && (
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm shadow-red-200" />
               )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteThread?.(msg.id);
+                }}
+                className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+              >
+                <X size={16} />
+              </button>
             </div>
           ))}
         </div>

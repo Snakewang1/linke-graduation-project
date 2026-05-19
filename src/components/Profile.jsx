@@ -3,7 +3,7 @@ import { ChevronRight, Code, LogOut } from "lucide-react";
 import { api } from "../api/client-firebase";
 import ApiConsole from "./ApiConsole";
 
-export default function Profile({ user, onPushTodo, onLogout }) {
+export default function Profile({ user, onPushTodo, onLogout, workflows = [] }) {
   const [showApiConsole, setShowApiConsole] = useState(false);
   const [integrations, setIntegrations] = useState([]);
 
@@ -19,6 +19,7 @@ export default function Profile({ user, onPushTodo, onLogout }) {
         onBack={() => setShowApiConsole(false)}
         onPushTodo={onPushTodo}
         integrations={integrations}
+        workflows={workflows}
       />
     );
   }

@@ -5,8 +5,10 @@ import {
 
 export const MOCK_DB = {
   users: {
-    admin: { name: "张总",   role: "admin", avatar: "👨‍💼", dept: "总经办", id: "U001" },
-    staff: { name: "李专员", role: "staff", avatar: "👩‍💻", dept: "销售部", id: "U009" },
+    admin:   { name: "张总",   role: "admin",   avatar: "👨‍💼", dept: "总经办", id: "U001" },
+    finance: { name: "王财务", role: "finance", avatar: "💳", dept: "财务部", id: "U002" },
+    erp:     { name: "陈仓管", role: "erp",     avatar: "📦", dept: "仓储部", id: "U003" },
+    staff:   { name: "李专员", role: "staff",   avatar: "👩‍💻", dept: "销售部", id: "U009" },
   },
   integrations: [
     { id: "erp",     name: "SAP ERP",      status: "connected",   color: "bg-blue-600" },

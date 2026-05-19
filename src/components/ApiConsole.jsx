@@ -1,30 +1,8 @@
 import { useState } from "react";
-import { ArrowLeft, Shield, Copy, Server, Terminal, Download, Activity } from "lucide-react";
+import { ArrowLeft, Shield, Copy, Server, Terminal, Activity, GitBranch } from "lucide-react";
 import { api } from "../api/client-firebase";
 
-const PULL_MOCK_DATA = {
-  erp: {
-    title: "库存预警: 核心仓物料 SKU-001 低于安全库存",
-    raw: `{"code":200,"data":{"sku":"SKU-001","current":42,"safe":50,"warehouse":"核心仓","suggest":"建议立即发起采购申请"}}`,
-  },
-  finance: {
-    title: "待审批报销单 #BX202403: 差旅费 ¥3,200",
-    raw: `{"code":200,"data":{"bills":[{"id":"BX202403","amount":3200,"type":"差旅","applicant":"李专员"}]}}`,
-  },
-  oa: {
-    title: "研发部李工提交年假申请（3天）待审批",
-    raw: `{"code":200,"data":{"type":"leave","applicant":"李工","dept":"研发部","days":3,"startDate":"2025-06-12","reason":"家庭事务","approver":"张总","status":"pending"}}`,
-  },
-  crm: {
-    title: "商机列表: 3个新线索待分配，2个合同待评审",
-    raw: `{"code":200,"data":{"leads":[{"company":"明辉科技","contact":"张经理","value":280000,"stage":"合同评审"},{"company":"星辰网络","contact":"赵总","value":150000,"stage":"初次接触"}],"total":5,"urgent":2}}`,
-  },
-};
-
-export default function ApiConsole({ onBack, onPushTodo, integrations }) {
-  const integrationMap = {};
-  integrations.forEach((i) => { integrationMap[i.id] = i; });
-
+export default function ApiConsole({ onBack, onPushTodo, integrations, workflows = [] }) {
   const [apiInputs, setApiInputs] = useState({
     erp: "核心仓物料 SKU-001 低于安全库存",
     finance: "差旅报销单 #BX202403 金额 ¥3,200",
@@ -37,14 +15,12 @@ export default function ApiConsole({ onBack, onPushTodo, integrations }) {
     oa: "POST /v1/oa/approval/webhook",
     crm: "POST /v1/crm/opportunity/webhook",
   });
-  const [apiDirections, setApiDirections] = useState({ erp: "push", finance: "push", oa: "push", crm: "push" });
   const [webhookLogs, setWebhookLogs] = useState([]);
 
-  const addLog = (direction, source, endpoint, payload, status) => {
+  const addLog = (source, endpoint, payload, status) => {
     setWebhookLogs((prev) => [
       {
         id: Date.now(),
-        direction,
         source,
         endpoint,
         payload: payload.slice(0, 50) + (payload.length > 50 ? "..." : ""),
@@ -55,26 +31,18 @@ export default function ApiConsole({ onBack, onPushTodo, integrations }) {
     ]);
   };
 
-  const simulateApiCall = async (integrationId, source, title, endpoint, direction) => {
-    if (direction === "push") {
-      if (!title.trim() || !endpoint.trim()) return alert("推送内容或接口路径不能为空！");
-      try {
-        await api.post(`/integrations/${integrationId}/push`, { payload: title });
-        addLog("push", source, endpoint, title, "success");
-        if (onPushTodo) onPushTodo(source, title);
-        alert(
-          `请求成功 (200 OK)！\n[${source}] 成功调用了接口：\n👉 ${endpoint}\n\n推送的数据内容为：\n"${title}"\n\n请前往"协同待办"模块查看最新任务流转。`
-        );
-      } catch {
-        addLog("push", source, endpoint, title, "error");
-        alert("推送失败，请检查后端服务是否运行。");
-      }
-    } else {
-      addLog("pull", source, endpoint, title.slice(0, 40), "success");
-      await new Promise((r) => setTimeout(r, 300));
+  const simulatePush = async (integrationId, source, title, endpoint) => {
+    if (!title.trim() || !endpoint.trim()) return alert("推送内容或接口路径不能为空！");
+    try {
+      await api.post(`/integrations/${integrationId}/push`, { payload: title });
+      addLog(source, endpoint, title, "success");
+      if (onPushTodo) onPushTodo(source, title);
       alert(
-        `拉取成功 (200 OK)！\n[${source}] 成功拉取了数据：\n👉 ${endpoint}\n\n返回数据：\n"${title}"`
+        `请求成功 (200 OK)！\n[${source}] 成功调用了接口：\n${endpoint}\n\n推送内容：\n"${title}"\n\n请前往"协同待办"查看最新任务流转。`
       );
+    } catch {
+      addLog(source, endpoint, title, "error");
+      alert("推送失败，请检查后端服务是否运行。");
     }
   };
 
@@ -113,99 +81,102 @@ export default function ApiConsole({ onBack, onPushTodo, integrations }) {
       {/* Integration cards */}
       <div className="space-y-4 pt-4">
         <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-          <Server size={14} /> 异构系统联调模拟
+          <Server size={14} /> 异构系统 Webhook 推送模拟
         </h4>
         <div className="grid md:grid-cols-2 gap-4 md:gap-6">
-          <ApiCard
-            color="bg-orange-500"
-            label="财务系统集成"
-            endpoint={apiEndpoints.finance}
-            onEndpointChange={(v) => setApiEndpoints({ ...apiEndpoints, finance: v })}
-            payloadLabel="报销内容 (Payload)"
-            payload={apiInputs.finance}
-            onPayloadChange={(v) => setApiInputs({ ...apiInputs, finance: v })}
-            direction={apiDirections.finance}
-            onToggleDirection={(d) => setApiDirections({ ...apiDirections, finance: d })}
-            pullData={PULL_MOCK_DATA.finance}
-            onSend={() =>
-              simulateApiCall(
-                "finance",
-                "金蝶云财务",
-                apiDirections.finance === "push" ? apiInputs.finance : PULL_MOCK_DATA.finance.title,
-                apiEndpoints.finance,
-                apiDirections.finance
-              )
-            }
-            buttonColor="bg-orange-500 hover:bg-orange-600"
-          />
-          <ApiCard
+          <PushCard
             color="bg-blue-600"
             label="ERP 库存集成"
             endpoint={apiEndpoints.erp}
             onEndpointChange={(v) => setApiEndpoints({ ...apiEndpoints, erp: v })}
-            payloadLabel="库存预警内容 (Payload)"
             payload={apiInputs.erp}
             onPayloadChange={(v) => setApiInputs({ ...apiInputs, erp: v })}
-            direction={apiDirections.erp}
-            onToggleDirection={(d) => setApiDirections({ ...apiDirections, erp: d })}
-            pullData={PULL_MOCK_DATA.erp}
-            onSend={() =>
-              simulateApiCall(
-                "erp",
-                "SAP ERP",
-                apiDirections.erp === "push" ? apiInputs.erp : PULL_MOCK_DATA.erp.title,
-                apiEndpoints.erp,
-                apiDirections.erp
-              )
-            }
+            onSend={() => simulatePush("erp", "SAP ERP", apiInputs.erp, apiEndpoints.erp)}
             buttonColor="bg-blue-600 hover:bg-blue-700"
           />
-          <ApiCard
+          <PushCard
+            color="bg-orange-500"
+            label="财务系统集成"
+            endpoint={apiEndpoints.finance}
+            onEndpointChange={(v) => setApiEndpoints({ ...apiEndpoints, finance: v })}
+            payload={apiInputs.finance}
+            onPayloadChange={(v) => setApiInputs({ ...apiInputs, finance: v })}
+            onSend={() => simulatePush("finance", "金蝶云财务", apiInputs.finance, apiEndpoints.finance)}
+            buttonColor="bg-orange-500 hover:bg-orange-600"
+          />
+          <PushCard
             color="bg-green-600"
             label="OA 办公集成"
             endpoint={apiEndpoints.oa}
             onEndpointChange={(v) => setApiEndpoints({ ...apiEndpoints, oa: v })}
-            payloadLabel="审批内容 (Payload)"
             payload={apiInputs.oa}
             onPayloadChange={(v) => setApiInputs({ ...apiInputs, oa: v })}
-            direction={apiDirections.oa}
-            onToggleDirection={(d) => setApiDirections({ ...apiDirections, oa: d })}
-            pullData={PULL_MOCK_DATA.oa}
-            onSend={() =>
-              simulateApiCall(
-                "oa",
-                "泛微 OA",
-                apiDirections.oa === "push" ? apiInputs.oa : PULL_MOCK_DATA.oa.title,
-                apiEndpoints.oa,
-                apiDirections.oa
-              )
-            }
+            onSend={() => simulatePush("oa", "泛微 OA", apiInputs.oa, apiEndpoints.oa)}
             buttonColor="bg-green-600 hover:bg-green-700"
           />
-          <ApiCard
+          <PushCard
             color="bg-purple-600"
             label="CRM 客户集成"
             endpoint={apiEndpoints.crm}
             onEndpointChange={(v) => setApiEndpoints({ ...apiEndpoints, crm: v })}
-            payloadLabel="商机/合同内容 (Payload)"
             payload={apiInputs.crm}
             onPayloadChange={(v) => setApiInputs({ ...apiInputs, crm: v })}
-            direction={apiDirections.crm}
-            onToggleDirection={(d) => setApiDirections({ ...apiDirections, crm: d })}
-            pullData={PULL_MOCK_DATA.crm}
-            onSend={() =>
-              simulateApiCall(
-                "crm",
-                "Salesforce CRM",
-                apiDirections.crm === "push" ? apiInputs.crm : PULL_MOCK_DATA.crm.title,
-                apiEndpoints.crm,
-                apiDirections.crm
-              )
-            }
+            onSend={() => simulatePush("crm", "Salesforce CRM", apiInputs.crm, apiEndpoints.crm)}
             buttonColor="bg-purple-600 hover:bg-purple-700"
           />
         </div>
       </div>
+
+      {/* Running workflows panel */}
+      {workflows.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-slate-100">
+            <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+              <GitBranch size={16} className="text-purple-500" />
+              运行中的跨系统流程
+            </h4>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {workflows.filter((w) => w.status === "active").map((wf) => (
+              <div key={wf.id} className="p-4 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-bold text-slate-700">{wf.templateName}</span>
+                  <span className="text-[10px] text-slate-400">{wf.createdAt}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-purple-500 rounded-full transition-all"
+                      style={{ width: `${(wf.currentStep / wf.totalSteps) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-purple-600 min-w-[52px] text-right">
+                    {wf.currentStep}/{wf.totalSteps}
+                  </span>
+                </div>
+                <div className="flex gap-1.5">
+                  {wf.stepTodos.map((tid, i) => {
+                    const done = i < wf.currentStep;
+                    const active = i === wf.currentStep;
+                    return (
+                      <div
+                        key={i}
+                        className={`w-3 h-3 rounded-full ${
+                          done ? "bg-green-400" : active ? "bg-purple-500 animate-pulse" : "bg-slate-200"
+                        }`}
+                        title={`步骤 ${i + 1}`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {workflows.filter((w) => w.status === "active").length === 0 && (
+              <div className="p-4 text-center text-xs text-slate-400">暂无运行中的流程</div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Webhook log panel */}
       {webhookLogs.length > 0 && (
@@ -213,7 +184,7 @@ export default function ApiConsole({ onBack, onPushTodo, integrations }) {
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
               <Activity size={16} className="text-blue-500" />
-              集成调用日志
+              Webhook 推送日志
             </h4>
             <button
               onClick={() => setWebhookLogs([])}
@@ -225,14 +196,8 @@ export default function ApiConsole({ onBack, onPushTodo, integrations }) {
           <div className="max-h-64 overflow-y-auto divide-y divide-slate-50">
             {webhookLogs.map((log) => (
               <div key={log.id} className="px-4 py-3 flex items-center gap-3 text-xs">
-                <span
-                  className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                    log.direction === "push"
-                      ? "bg-orange-50 text-orange-600"
-                      : "bg-green-50 text-green-600"
-                  }`}
-                >
-                  {log.direction === "push" ? "PUSH" : "PULL"}
+                <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-orange-50 text-orange-600">
+                  PUSH
                 </span>
                 <span className="text-slate-600 font-medium min-w-[64px]">{log.source}</span>
                 <span className="text-slate-400 font-mono text-[10px] truncate">{log.endpoint}</span>
@@ -251,47 +216,13 @@ export default function ApiConsole({ onBack, onPushTodo, integrations }) {
   );
 }
 
-function ApiCard({
-  color,
-  label,
-  endpoint,
-  onEndpointChange,
-  payloadLabel,
-  payload,
-  onPayloadChange,
-  direction,
-  onToggleDirection,
-  pullData,
-  onSend,
-  buttonColor,
-}) {
-  const isPush = direction === "push";
-
+function PushCard({ color, label, endpoint, onEndpointChange, payload, onPayloadChange, onSend, buttonColor }) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
       <div className="p-5 border-b border-slate-100 flex flex-col gap-3">
         <div className="flex items-center gap-2">
           <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
           <span className="text-base font-bold">{label}</span>
-        </div>
-        {/* Direction toggle */}
-        <div className="flex bg-slate-100 rounded-xl p-1">
-          <button
-            onClick={() => onToggleDirection("push")}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-              isPush ? "bg-white text-blue-600 shadow-sm" : "text-slate-500"
-            }`}
-          >
-            推送到本系统
-          </button>
-          <button
-            onClick={() => onToggleDirection("pull")}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-              !isPush ? "bg-white text-green-600 shadow-sm" : "text-slate-500"
-            }`}
-          >
-            拉取数据
-          </button>
         </div>
         <input
           value={endpoint}
@@ -300,42 +231,19 @@ function ApiCard({
         />
       </div>
       <div className="p-5 bg-slate-50/50 space-y-4">
-        {isPush ? (
-          <div>
-            <label className="text-xs font-bold text-slate-400 mb-2 block">{payloadLabel}</label>
-            <input
-              value={payload}
-              onChange={(e) => onPayloadChange(e.target.value)}
-              className="w-full bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-sm outline-none focus:border-blue-400 transition-colors shadow-sm"
-            />
-          </div>
-        ) : (
-          <div className="bg-green-50/50 border border-green-100 rounded-xl p-3">
-            <p className="text-[10px] font-bold text-green-600 uppercase mb-1">拉取数据预览</p>
-            <p className="text-xs text-slate-700 leading-relaxed">{pullData.title}</p>
-            <details className="mt-2">
-              <summary className="text-[10px] text-slate-400 cursor-pointer hover:text-slate-600">
-                查看原始 JSON
-              </summary>
-              <pre className="mt-2 text-[10px] font-mono text-slate-600 bg-white p-2 rounded-lg border border-slate-100 overflow-x-auto whitespace-pre-wrap">
-                {pullData.raw}
-              </pre>
-            </details>
-          </div>
-        )}
+        <div>
+          <label className="text-xs font-bold text-slate-400 mb-2 block">推送内容 (Payload)</label>
+          <input
+            value={payload}
+            onChange={(e) => onPayloadChange(e.target.value)}
+            className="w-full bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-sm outline-none focus:border-blue-400 transition-colors shadow-sm"
+          />
+        </div>
         <button
           onClick={onSend}
           className={`w-full ${buttonColor} text-white py-3 rounded-xl text-sm font-bold shadow-md active:scale-95 transition-all flex justify-center items-center gap-2`}
         >
-          {isPush ? (
-            <>
-              <Terminal size={16} /> 发送集成请求
-            </>
-          ) : (
-            <>
-              <Download size={16} /> 拉取数据
-            </>
-          )}
+          <Terminal size={16} /> 发送推送请求
         </button>
       </div>
     </div>

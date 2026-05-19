@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   LayoutDashboard, CheckSquare, MessageSquare, Settings, Briefcase,
 } from "lucide-react";
@@ -10,6 +10,7 @@ import Login from "./components/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { api } from "./api/client-firebase";
 import { logout, onAuthChange } from "./firebase/auth";
+import { createWorkflowInstance, advanceWorkflow, abortWorkflow } from "./data/workflow-engine";
 
 const NAV_ITEMS = [
   { id: "messages",  icon: MessageSquare,    label: "消息" },
@@ -24,7 +25,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [todos, setTodos] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [workflows, setWorkflows] = useState([]);
   const [authChecking, setAuthChecking] = useState(true);
+  const isLocalLoginRef = useRef(false);
 
   const unreadCount = useMemo(
     () => messages.reduce((sum, m) => sum + (m.unread || 0), 0),
@@ -36,18 +39,21 @@ export default function App() {
     const unsub = onAuthChange(async (fbUser) => {
       setAuthChecking(false);
       if (fbUser) {
+        isLocalLoginRef.current = false;
         setUser(fbUser);
         setLoading(true);
         try {
-          const [todoData, msgData] = await Promise.all([
-            api.get("/todos"),
+          const [todoData, wfData, msgData] = await Promise.all([
+            api.get("/todos/all"),
+            api.get("/workflows"),
             api.get("/messages"),
           ]);
           setTodos(todoData.todos || []);
+          setWorkflows(wfData.workflows || []);
           setMessages(msgData.threads || []);
         } catch {}
         setLoading(false);
-      } else {
+      } else if (!isLocalLoginRef.current) {
         setUser(null);
         setLoading(false);
       }
@@ -55,22 +61,28 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  const handleLogin = (loggedInUser) => {
+  const handleLogin = (loggedInUser, isLocal = false) => {
+    if (isLocal) isLocalLoginRef.current = true;
     setUser(loggedInUser);
     setLoading(true);
-    Promise.all([
-      api.get("/todos"),
-      api.get("/messages"),
-    ])
-      .then(([todoData, msgData]) => {
-        setTodos(todoData.todos || []);
-        setMessages(msgData.threads || []);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    // 从 Firestore 加载共享数据
+    if (!isLocal) {
+      Promise.all([api.get("/todos/all"), api.get("/workflows")])
+        .then(([todoData, wfData]) => {
+          setTodos(todoData.todos || []);
+          setWorkflows(wfData.workflows || []);
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    } else {
+      setTodos([]);
+      setMessages([]);
+      setLoading(false);
+    }
   };
 
   const handleLogout = async () => {
+    isLocalLoginRef.current = false;
     await logout();
     setUser(null);
   };
@@ -78,20 +90,78 @@ export default function App() {
   const handlePushTodo = async (source, title) => {
     try {
       await api.post("/todos", { source, title, type: "业务推送", priority: "high" });
-      // Refresh todos
       const data = await api.get("/todos");
       setTodos(data.todos || []);
-      // Refresh messages
       const msgData = await api.get("/messages");
       setMessages(msgData.threads || []);
     } catch {
-      // Fallback: local update
       const now = new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
       const newTodo = {
         id: Date.now(), source, title, type: "业务推送", priority: "high", time: now, status: "pending",
       };
       setTodos((prev) => [newTodo, ...prev]);
     }
+  };
+
+  const handleStartWorkflow = (templateId, formData) => {
+    const result = createWorkflowInstance(templateId, formData);
+    if (!result || !result.firstTodo) return;
+    setWorkflows((prev) => [...prev, result.instance]);
+    setTodos((prev) => [result.firstTodo, ...prev]);
+    api.post("/todos", result.firstTodo).catch(() => {});
+    api.post("/workflows", result.instance).catch(() => {});
+  };
+
+  const handleCreateTodo = (todoData) => {
+    const now = new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
+    const newTodo = {
+      id: `todo-${Date.now()}`,
+      source: todoData.source || "手动创建",
+      title: todoData.title || "新任务",
+      type: todoData.type || "任务",
+      priority: todoData.priority || "medium",
+      time: now,
+      status: "pending",
+      system: todoData.system || null,
+    };
+    setTodos((prev) => [newTodo, ...prev]);
+    api.post("/todos", newTodo).catch(() => {});
+  };
+
+  const handleTodoComplete = (todoId) => {
+    const wf = workflows.find((w) => w.stepTodos.includes(todoId));
+    if (!wf) return;
+
+    const result = advanceWorkflow(wf, todoId);
+    if (!result) return;
+
+    setWorkflows((prev) => prev.map((w) => w.id === wf.id ? result.instance : w));
+    api.post("/workflows", result.instance).catch(() => {});
+
+    if (result.nextTodo) {
+      setTodos((prev) => [result.nextTodo, ...prev]);
+      api.post("/todos", result.nextTodo).catch(() => {});
+    }
+    if (result.done) {
+      api.post("/notify-admin", {
+        content: `流程「${wf.templateName}」全部完成！${wf.totalSteps} 个系统已自动协同流转。`,
+        tag: "流程完成",
+      }).catch(() => {});
+    }
+  };
+
+  const handleAbortWorkflow = (todoId) => {
+    const wf = workflows.find((w) => w.stepTodos.includes(todoId));
+    if (!wf) return;
+    const aborted = abortWorkflow(wf);
+    if (!aborted) return;
+    setWorkflows((prev) => prev.map((w) => w.id === wf.id ? aborted : w));
+    api.post("/workflows", aborted).catch(() => {});
+    setTodos((prev) => prev.map((t) => t.id === todoId ? { ...t, status: "done" } : t));
+    api.post("/notify-admin", {
+      content: `流程「${wf.templateName}」已终止（已执行 ${wf.currentStep}/${wf.totalSteps} 步）。`,
+      tag: "流程终止",
+    }).catch(() => {});
   };
 
   /* ---- auth checking screen ---- */
@@ -171,14 +241,43 @@ export default function App() {
       <main className="flex-1 h-screen overflow-y-auto scroll-smooth">
         <div className="w-full max-w-7xl mx-auto p-5 md:p-10 lg:p-12 pb-28 md:pb-12">
           <ErrorBoundary>
-            {tab === "workbench" && <Workbench role={user.role} user={user} />}
-            {tab === "messages" && <Messages messages={messages} setMessages={setMessages} role={user.role} />}
-            {tab === "todo" && <TodoList todos={todos} setTodos={setTodos} role={user.role} />}
+            {tab === "workbench" && (
+              <Workbench
+                role={user.role}
+                user={user}
+                onStartWorkflow={handleStartWorkflow}
+                onCreateTodo={handleCreateTodo}
+                workflows={workflows}
+                todos={todos}
+              />
+            )}
+            {tab === "messages" && (
+              <Messages
+                messages={messages}
+                setMessages={setMessages}
+                role={user.role}
+                onDeleteThread={async (id) => {
+                  try { await api.delete(`/messages/${id}`); } catch {}
+                  setMessages((prev) => prev.filter((m) => m.id !== id));
+                }}
+              />
+            )}
+            {tab === "todo" && (
+              <TodoList
+                todos={todos}
+                setTodos={setTodos}
+                role={user.role}
+                workflows={workflows}
+                onTodoComplete={handleTodoComplete}
+                onAbortWorkflow={handleAbortWorkflow}
+              />
+            )}
             {tab === "profile" && (
               <Profile
                 user={user}
                 onPushTodo={handlePushTodo}
                 onLogout={handleLogout}
+                workflows={workflows}
               />
             )}
           </ErrorBoundary>

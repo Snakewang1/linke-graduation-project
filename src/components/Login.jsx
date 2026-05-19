@@ -1,6 +1,14 @@
 import { useState } from "react";
-import { Briefcase, Mail, Lock, Loader2, Server, ChevronDown } from "lucide-react";
+import { Briefcase, Mail, Lock, Loader2 } from "lucide-react";
 import { login } from "../firebase/auth";
+import { MOCK_DB } from "../data/mock";
+
+const DEMO_ACCOUNTS = {
+  "admin@linke.com":   MOCK_DB.users.admin,
+  "finance@linke.com": MOCK_DB.users.finance,
+  "erp@linke.com":     MOCK_DB.users.erp,
+  "staff@linke.com":   MOCK_DB.users.staff,
+};
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState("admin@linke.com");
@@ -15,14 +23,14 @@ export default function Login({ onLogin }) {
 
     try {
       const result = await login(email, password);
-      onLogin(result.user);
-    } catch (err) {
-      if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found") {
-        setError("邮箱或密码错误");
-      } else if (err.code === "auth/too-many-requests") {
-        setError("登录尝试过于频繁，请稍后再试");
+      onLogin(result.user, false);
+    } catch {
+      // Firebase 失败时，回退到本地演示账号
+      const demoUser = DEMO_ACCOUNTS[email];
+      if (demoUser) {
+        onLogin(demoUser, true); // true = 本地登录
       } else {
-        setError(err.message || "登录失败，请重试");
+        setError("邮箱或密码错误");
       }
     } finally {
       setLoading(false);
@@ -88,10 +96,38 @@ export default function Login({ onLogin }) {
           </button>
         </form>
 
-        <p className="text-center text-xs text-slate-400 mt-6">
-          演示账号：admin@linke.com / admin123
-          <br />
-          由 Firebase Auth + Firestore 驱动
+        {/* Quick login cards */}
+        <p className="text-xs font-bold text-slate-400 text-center mt-6 mb-3">快速切换演示账号</p>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { label: "张总", sub: "管理员", avatar: "👨‍💼", email: "admin@linke.com", pw: "admin123", color: "bg-blue-500" },
+            { label: "王财务", sub: "财务专员", avatar: "💳", email: "finance@linke.com", pw: "finance123", color: "bg-orange-500" },
+            { label: "陈仓管", sub: "ERP专员", avatar: "📦", email: "erp@linke.com", pw: "erp123", color: "bg-blue-600" },
+            { label: "李专员", sub: "普通员工", avatar: "👩‍💻", email: "staff@linke.com", pw: "staff123", color: "bg-green-600" },
+          ].map((u) => (
+            <button
+              key={u.email}
+              type="button"
+              onClick={() => { setEmail(u.email); setPassword(u.pw); setError(""); }}
+              className={`flex items-center gap-2 p-3 rounded-xl border transition-all text-left ${
+                email === u.email
+                  ? "border-blue-300 bg-blue-50 shadow-sm"
+                  : "border-slate-200 bg-white hover:border-slate-300"
+              }`}
+            >
+              <span className="text-lg">{u.avatar}</span>
+              <div>
+                <p className="text-xs font-bold text-slate-700">{u.label}</p>
+                <p className="text-[10px] text-slate-400">{u.sub}</p>
+              </div>
+              {email === u.email && (
+                <span className="ml-auto w-2 h-2 rounded-full bg-blue-500" />
+              )}
+            </button>
+          ))}
+        </div>
+        <p className="text-center text-[10px] text-slate-400 mt-3">
+          选择账号后点击"登录" · 由 Firebase Auth 驱动
         </p>
       </div>
     </div>

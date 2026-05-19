@@ -1,5 +1,5 @@
 import {
-  collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
+  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc,
   query, where, orderBy, limit, serverTimestamp,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from "firebase/functions";
@@ -31,24 +31,26 @@ function getUserId() {
 
 // ── Todos ──
 
+async function listAllTodos() {
+  const snap = await getDocs(collection(db, "todos"));
+  let todos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  todos = todos.filter((t) => !t.deletedAt);
+  todos.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+  return { todos };
+}
+
 async function listTodos(filters = {}) {
   const userId = getUserId();
   if (!userId) return { todos: [] };
 
-  // Simple query — sort client-side to avoid composite index requirements
   const q = query(collection(db, "todos"), where("userId", "==", userId));
   const snap = await getDocs(q);
 
   let todos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-  // Filter deleted & client-side filters
   todos = todos.filter((t) => !t.deletedAt);
   if (filters.status) todos = todos.filter((t) => t.status === filters.status);
   if (filters.priority) todos = todos.filter((t) => t.priority === filters.priority);
-
-  // Sort by createdAt desc
   todos.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-
   return { todos };
 }
 
@@ -61,10 +63,20 @@ async function createTodo(data) {
     type: data.type || "任务",
     priority: data.priority || "medium",
     status: "pending",
+    system: data.system || null,
+    workflowInstanceId: data.workflowInstanceId || null,
+    workflowStep: data.workflowStep ?? null,
+    workflowTotalSteps: data.workflowTotalSteps ?? null,
+    workflowName: data.workflowName || null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     deletedAt: null,
   };
+  // 使用本地 ID 存 Firestore，保证和工作流引擎 ID 一致
+  if (data.id) {
+    await setDoc(doc(db, "todos", data.id), todo);
+    return { todo: { id: data.id, ...todo } };
+  }
   const ref = await addDoc(collection(db, "todos"), todo);
   return { todo: { id: ref.id, ...todo } };
 }
@@ -81,6 +93,11 @@ async function updateTodo(id, data) {
   if (data.type) updates.type = data.type;
   await updateDoc(doc(db, "todos", id), updates);
   return { todo: { id, ...updates } };
+}
+
+async function deleteThread(threadId) {
+  await deleteDoc(doc(db, "messageThreads", threadId));
+  return { success: true };
 }
 
 async function deleteTodo(id) {
@@ -283,11 +300,75 @@ function getRole() {
   return user?.email?.includes("admin") ? "admin" : "staff";
 }
 
-// ── Unified API object (same interface as client.js for easy swapping) ──
+// ── Workflows ──
+
+async function listWorkflows() {
+  const snap = await getDocs(collection(db, "workflows"));
+  const workflows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return { workflows };
+}
+
+async function saveWorkflow(workflow) {
+  await setDoc(doc(db, "workflows", workflow.id), workflow);
+  return { workflow };
+}
+
+// ── Notifications (推给 admin) ──
+
+async function notifyAdmin(content, tag) {
+  // 查找 admin 的 uid
+  let adminUid = null;
+  try {
+    const adminUser = await getDocs(query(collection(db, "users"), where("role", "==", "admin")));
+    if (!adminUser.empty) adminUid = adminUser.docs[0].id;
+  } catch {}
+  if (!adminUid) return { sent: false };
+
+  // 写入共享通知线程
+  const threadRef = doc(db, "messageThreads", "notifications");
+  const threadSnap = await getDoc(threadRef);
+  if (!threadSnap.exists()) {
+    await setDoc(threadRef, {
+      type: "bot",
+      name: "LinkE 流程引擎",
+      color: "bg-purple-600",
+      tag: tag || "系统",
+      pinned: true,
+      participants: [adminUid],
+      unreadBy: { [adminUid]: 1 },
+      lastContent: content.slice(0, 80),
+      lastTime: new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" }),
+      updatedAt: serverTimestamp(),
+    });
+  } else {
+    const data = threadSnap.data();
+    await updateDoc(threadRef, {
+      lastContent: content.slice(0, 80),
+      lastTime: new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" }),
+      updatedAt: serverTimestamp(),
+      [`unreadBy.${adminUid}`]: (data.unreadBy?.[adminUid] || 0) + 1,
+    });
+  }
+
+  // 写入消息历史
+  await addDoc(collection(db, "messageThreads", "notifications", "messages"), {
+    senderId: null,
+    senderType: "other",
+    senderName: null,
+    type: "text",
+    content,
+    createdAt: serverTimestamp(),
+  });
+
+  return { sent: true };
+}
+
+// ── Unified API object ──
 
 export const api = {
   // The path-based interface for compatibility
   async get(path) {
+    if (path === "/todos/all") return listAllTodos();
     if (path === "/todos") return listTodos();
     if (path.startsWith("/todos?")) {
       const params = new URLSearchParams(path.split("?")[1]);
@@ -298,6 +379,7 @@ export const api = {
       const id = path.split("/")[2];
       return getHistory(id);
     }
+    if (path === "/workflows") return listWorkflows();
     if (path === "/integrations") return listIntegrations();
     if (path.match(/^\/integrations\/.+\/logs$/)) {
       const id = path.split("/")[2];
@@ -314,6 +396,8 @@ export const api = {
   },
 
   async post(path, body) {
+    if (path === "/notify-admin") return notifyAdmin(body?.content, body?.tag);
+    if (path === "/workflows") return saveWorkflow(body);
     if (path === "/todos") return createTodo(body || {});
     if (path === "/ai/chat") return aiChat(body?.prompt, body?.history || []);
     if (path === "/ai/summary") {
@@ -355,6 +439,10 @@ export const api = {
     if (path.match(/^\/todos\/.+$/)) {
       const id = path.split("/")[2];
       return deleteTodo(id);
+    }
+    if (path.match(/^\/messages\/.+$/)) {
+      const id = path.split("/")[2];
+      return deleteThread(id);
     }
     throw new Error(`Unknown DELETE path: ${path}`);
   },
