@@ -81,11 +81,7 @@ export const APP_MENUS = {
           { id: "p_create", title: "创建采购申请", type: "form", formFields: ["物料名称", "规格", "数量"] },
         ],
       },
-      {
-        id: "inventory", title: "库存管理", icon: Package, desc: "出入库、盘点",
-        children: [
-        ],
-      },
+
     ],
   },
   finance: {
@@ -97,11 +93,7 @@ export const APP_MENUS = {
           { id: "r_new", title: "发起报销申请", type: "form", formFields: ["金额", "说明"] },
         ],
       },
-      {
-        id: "report", title: "财务看板", icon: BarChart3, desc: "营收与成本分析",
-        children: [
-        ],
-      },
+
     ],
   },
   oa: {
