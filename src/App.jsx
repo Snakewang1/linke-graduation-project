@@ -11,6 +11,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { api } from "./api/client-firebase";
 import { logout, onAuthChange } from "./firebase/auth";
 import { createWorkflowInstance, advanceWorkflow, abortWorkflow } from "./data/workflow-engine";
+import { MOCK_DB } from "./data/mock";
 
 const NAV_ITEMS = [
   { id: "messages",  icon: MessageSquare,    label: "消息" },
@@ -67,16 +68,17 @@ export default function App() {
     setLoading(true);
     // 从 Firestore 加载共享数据
     if (!isLocal) {
-      Promise.all([api.get("/todos/all"), api.get("/workflows")])
-        .then(([todoData, wfData]) => {
+      Promise.all([api.get("/todos/all"), api.get("/workflows"), api.get("/messages")])
+        .then(([todoData, wfData, msgData]) => {
           setTodos(todoData.todos || []);
           setWorkflows(wfData.workflows || []);
+          setMessages(msgData.threads || []);
         })
         .catch(() => {})
         .finally(() => setLoading(false));
     } else {
       setTodos([]);
-      setMessages([]);
+      setMessages(MOCK_DB.messages);
       setLoading(false);
     }
   };
