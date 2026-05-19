@@ -1,0 +1,1249 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LinkE 领客协同平台 API",
+    "version": "1.0.0",
+    "description": "LinkE（领客协同）跨系统协同办公平台 RESTful API 接口规范。提供认证授权、待办管理、消息中心、AI 智能助手及异构系统集成等功能。",
+    "contact": {
+      "name": "LinkE Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001",
+      "description": "本地开发服务器"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "认证与授权（登录/注册/当前用户）"
+    },
+    {
+      "name": "Todos",
+      "description": "待办事项管理"
+    },
+    {
+      "name": "Messages",
+      "description": "消息中心与会话管理"
+    },
+    {
+      "name": "AI",
+      "description": "DeepSeek AI 智能助手"
+    },
+    {
+      "name": "Integrations",
+      "description": "异构系统集成（ERP/OA/CRM/财务）"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "登录后获取的 JWT Token。格式：Bearer {token}"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "U001"
+          },
+          "name": {
+            "type": "string",
+            "example": "张总"
+          },
+          "email": {
+            "type": "string",
+            "example": "admin@linke.com"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "staff",
+              "finance",
+              "erp"
+            ]
+          },
+          "avatar": {
+            "type": "string",
+            "example": "👨‍💼"
+          },
+          "dept": {
+            "type": "string",
+            "example": "总经办"
+          }
+        }
+      },
+      "Todo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "userId": {
+            "type": "string",
+            "example": "U001"
+          },
+          "source": {
+            "type": "string",
+            "example": "ERP系统"
+          },
+          "title": {
+            "type": "string",
+            "example": "Q3季度原材料采购审批"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "审批",
+              "签字",
+              "预定",
+              "任务",
+              "业务推送"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "processing",
+              "done"
+            ]
+          },
+          "system": {
+            "type": "string",
+            "nullable": true,
+            "example": "erp"
+          },
+          "workflowInstanceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "workflowStep": {
+            "type": "integer",
+            "nullable": true
+          },
+          "workflowTotalSteps": {
+            "type": "integer",
+            "nullable": true
+          },
+          "workflowName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Integration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "erp"
+          },
+          "name": {
+            "type": "string",
+            "example": "SAP ERP"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "disconnected",
+              "error"
+            ]
+          },
+          "color": {
+            "type": "string",
+            "example": "bg-blue-600"
+          },
+          "webhookEndpoint": {
+            "type": "string",
+            "example": "POST /v1/erp/webhook"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IntegrationLog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "integrationId": {
+            "type": "string",
+            "example": "erp"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "push",
+              "pull"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "example": "SAP ERP"
+          },
+          "endpoint": {
+            "type": "string",
+            "example": "POST /v1/erp/webhook"
+          },
+          "payload": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MessageThread": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "bot",
+              "group",
+              "user"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string",
+            "nullable": true
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "lastContent": {
+            "type": "string"
+          },
+          "lastTime": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "senderId": {
+            "type": "string",
+            "nullable": true
+          },
+          "senderType": {
+            "type": "string",
+            "enum": [
+              "self",
+              "other"
+            ]
+          },
+          "senderName": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "file"
+            ]
+          },
+          "content": {
+            "type": "string"
+          },
+          "fileSize": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "错误描述"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/ai/chat": {
+      "post": {
+        "summary": "AI 智能对话",
+        "description": "调用 DeepSeek Chat 大模型进行多轮智能对话。\n服务端根据 JWT 中解析的用户角色注入对应的 System Prompt：\nadmin 角色获得战略分析风格回复，staff 角色获得任务执行指导风格回复。\n",
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "prompt"
+                ],
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "description": "用户输入的自然语言问题",
+                    "example": "我现在有哪些待处理任务？"
+                  },
+                  "history": {
+                    "type": "array",
+                    "description": "多轮对话历史",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "assistant"
+                          ]
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI 回复",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reply": {
+                      "type": "string",
+                      "example": "您好张总，当前系统有3条待处理任务..."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/summary": {
+      "post": {
+        "summary": "AI 待办汇总",
+        "description": "调用 DeepSeek 对当前待办任务进行智能汇总并给出优先级建议",
+        "tags": [
+          "AI"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "todoIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "待汇总的待办 ID，为空则汇总全部待处理"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI 汇总结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "summary": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "用户登录",
+        "description": "通过邮箱和密码登录，返回 JWT Token 和用户信息。密码使用 bcrypt 校验。",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "admin@linke.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "admin123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "description": "JWT Token，有效期 7 天"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "邮箱或密码错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "summary": "用户注册",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "新员工"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "dept": {
+                    "type": "string",
+                    "example": "研发部"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "注册成功，返回 token 和用户信息"
+          },
+          "409": {
+            "description": "该邮箱已被注册"
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "summary": "获取当前用户信息",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "当前用户",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录"
+          }
+        }
+      }
+    },
+    "/api/integrations": {
+      "get": {
+        "summary": "获取所有异构系统集成",
+        "description": "返回已接入的四套异构系统（ERP/OA/CRM/财务）及其连接状态",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "集成列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "integrations": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Integration"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/{id}": {
+      "get": {
+        "summary": "获取单个集成详情",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "集成系统 ID（erp / finance / oa / crm）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "集成详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "integration": {
+                      "$ref": "#/components/schemas/Integration"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "集成不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "更新集成配置（管理员）",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "connected",
+                      "disconnected",
+                      "error"
+                    ]
+                  },
+                  "webhookEndpoint": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新后的集成"
+          },
+          "403": {
+            "description": "权限不足（仅管理员）"
+          }
+        }
+      }
+    },
+    "/api/integrations/{id}/push": {
+      "post": {
+        "summary": "异构系统数据推送（管理员）",
+        "description": "模拟外部异构系统向 LinkE 推送业务数据。接收推送后自动创建待办任务、\n写入集成调用日志（direction=push），并向所有用户广播通知消息。\n这是 LinkE 与 ERP/OA/CRM/财务等外部系统对接的核心入口。\n",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "集成系统 ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "payload": {
+                    "type": "string",
+                    "description": "业务数据内容",
+                    "example": "新订单 #ORD202403 已确认，金额 ¥50,000"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "推送成功，待办已创建",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "todo": {
+                      "$ref": "#/components/schemas/Todo"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足"
+          }
+        }
+      }
+    },
+    "/api/integrations/{id}/logs": {
+      "get": {
+        "summary": "获取集成调用日志（管理员）",
+        "description": "返回最近 50 条 Push/Pull 调用记录，用于链路追踪与审计",
+        "tags": [
+          "Integrations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "调用日志列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "logs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IntegrationLog"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/messages": {
+      "get": {
+        "summary": "获取消息会话列表",
+        "description": "返回当前用户参与的所有消息线程，置顶优先，按更新时间倒序",
+        "tags": [
+          "Messages"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "会话列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "threads": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MessageThread"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/history": {
+      "get": {
+        "summary": "获取消息历史",
+        "description": "获取指定线程的全部消息，同时将当前用户未读计数清零",
+        "tags": [
+          "Messages"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "消息线程 ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "消息历史",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Message"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "发送消息",
+        "description": "向指定线程发送消息，自动更新线程时间戳并为其他参与者增加未读计数",
+        "tags": [
+          "Messages"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content"
+                ],
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "example": "大家好，方案已更新"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "file"
+                    ],
+                    "default": "text"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "消息已发送",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/Message"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/todos": {
+      "get": {
+        "summary": "获取待办列表",
+        "description": "管理员返回全部待办；普通员工仅返回自己的待办。\n支持按状态和优先级筛选。\n",
+        "tags": [
+          "Todos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "processing",
+                "done"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "待办列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "todos": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Todo"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "创建待办",
+        "tags": [
+          "Todos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "example": "采购审批"
+                  },
+                  "source": {
+                    "type": "string",
+                    "example": "ERP系统"
+                  },
+                  "type": {
+                    "type": "string",
+                    "default": "任务"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low"
+                    ],
+                    "default": "medium"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "todo": {
+                      "$ref": "#/components/schemas/Todo"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/todos/{id}": {
+      "patch": {
+        "summary": "更新待办内容",
+        "tags": [
+          "Todos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low"
+                    ]
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功"
+          }
+        }
+      },
+      "delete": {
+        "summary": "删除待办（管理员，软删除）",
+        "tags": [
+          "Todos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功"
+          },
+          "403": {
+            "description": "权限不足"
+          }
+        }
+      }
+    },
+    "/api/todos/{id}/status": {
+      "patch": {
+        "summary": "更新待办状态",
+        "description": "状态流转规则：pending → processing → done\nprocessing 可回退到 pending，done 不可回退\n",
+        "tags": [
+          "Todos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "processing",
+                      "done"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "状态更新成功"
+          },
+          "400": {
+            "description": "无效的状态转换"
+          }
+        }
+      }
+    }
+  }
+}
