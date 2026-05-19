@@ -84,7 +84,6 @@ export const APP_MENUS = {
       {
         id: "inventory", title: "库存管理", icon: Package, desc: "出入库、盘点",
         children: [
-          { id: "i_query", title: "实时库存查询", type: "search" },
         ],
       },
     ],
@@ -101,7 +100,6 @@ export const APP_MENUS = {
       {
         id: "report", title: "财务看板", icon: BarChart3, desc: "营收与成本分析",
         children: [
-          { id: "rep_v", title: "查看月度分析", type: "list" },
         ],
       },
     ],
@@ -113,7 +111,6 @@ export const APP_MENUS = {
         id: "leave", title: "请假审批", icon: ClipboardCheck, desc: "年假、事假、病假",
         children: [
           { id: "l_new", title: "提交请假申请", type: "form", formFields: ["类型", "开始日期", "结束日期", "事由"] },
-          { id: "l_list", title: "待审批请假单", type: "list" },
         ],
       },
       {
@@ -131,7 +128,6 @@ export const APP_MENUS = {
         id: "customer", title: "客户管理", icon: Users, desc: "客户信息、联系人",
         children: [
           { id: "c_new", title: "新建客户档案", type: "form", formFields: ["公司名称", "行业", "联系人", "电话"] },
-          { id: "c_search", title: "客户信息查询", type: "search" },
         ],
       },
       {
