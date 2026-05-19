@@ -136,7 +136,14 @@ export default function Workbench({ role, user, onStartWorkflow, onCreateTodo, w
           {data.items.map((m) => (
             <div
               key={m.id}
-              onClick={() => push({ type: "module", data: m, color: data.color, appId: id })}
+              onClick={() => {
+                const hasSingleForm = m.children && m.children.length === 1 && m.children[0].type === "form";
+                if (hasSingleForm) {
+                  push({ type: "form", data: m.children[0], appId: id });
+                } else {
+                  push({ type: "module", data: m, color: data.color, appId: id });
+                }
+              }}
               className="bg-white p-5 rounded-2xl flex items-center justify-between border border-slate-100 hover:border-blue-200 transition-all cursor-pointer shadow-sm hover:shadow-md group"
             >
               <div className="flex items-center gap-5">
