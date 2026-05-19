@@ -258,6 +258,8 @@ export default function App() {
                 messages={messages}
                 setMessages={setMessages}
                 role={user.role}
+                todos={todos}
+                workflows={workflows}
                 onDeleteThread={async (id) => {
                   try { await api.delete(`/messages/${id}`); } catch {}
                   setMessages((prev) => prev.filter((m) => m.id !== id));

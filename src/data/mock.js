@@ -27,7 +27,7 @@ export const MOCK_DB = {
   ],
   messages: [
     {
-      id: 11, type: "bot", name: "ERP AI 助手",
+      id: 11, type: "bot", name: "AI 助手",
       content: "点击可咨询库存、报表或审批进度",
       time: "11:30", unread: 0, avatarIcon: Bot, color: "bg-slate-800", tag: "AI",
       history: [

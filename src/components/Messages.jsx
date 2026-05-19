@@ -6,7 +6,7 @@ import {
 import { formatContent } from "../api/deepseek";
 import { api } from "../api/client-firebase";
 
-export default function Messages({ messages, setMessages, role, onDeleteThread }) {
+export default function Messages({ messages, setMessages, role, todos = [], workflows = [], onDeleteThread }) {
   const [activeChat, setActiveChat] = useState(null);
   // Local mutable copies so we never mutate the source data
   const [chatHistories, setChatHistories] = useState({});
@@ -18,6 +18,19 @@ export default function Messages({ messages, setMessages, role, onDeleteThread }
   const [aiIsPolishing, setAiIsPolishing] = useState(false);
   const [aiHistoryLoaded, setAiHistoryLoaded] = useState(false);
   const aiScrollRef = useRef(null);
+
+  const buildContext = useCallback(() => {
+    const pending = todos.filter((t) => t.status === "pending" || t.status === "processing");
+    const active = workflows.filter((w) => w.status === "active");
+    const lines = [];
+    if (pending.length > 0) {
+      lines.push(`待办任务（${pending.length}项）：${pending.map((t) => `[${t.source || t.system || "系统"}] ${t.title}（${t.priority === "high" ? "紧急" : "普通"}）`).join("；")}`);
+    }
+    if (active.length > 0) {
+      lines.push(`运行中流程（${active.length}个）：${active.map((w) => `${w.templateName}（第${w.currentStep}/${w.totalSteps}步）`).join("；")}`);
+    }
+    return lines.length > 0 ? `【当前任务背景】\n${lines.join("\n")}\n\n` : "";
+  }, [todos, workflows]);
 
   const openChat = async (msg) => {
     setActiveChat(msg);
@@ -84,7 +97,8 @@ export default function Messages({ messages, setMessages, role, onDeleteThread }
       const messageHistory = currentHistory
         .filter((m) => m.type === "text" && !m.isTemp)
         .map((m) => ({ role: m.sender === "self" ? "user" : "assistant", content: m.content }));
-      const data = await api.post("/ai/chat", { prompt: text, history: messageHistory });
+      const contextPrefix = buildContext();
+      const data = await api.post("/ai/chat", { prompt: contextPrefix + text, history: messageHistory });
       setAiHistory((prev) => [
         ...prev.filter((m) => m.id !== tempId),
         { id: Date.now() + 2, sender: "other", type: "text", content: data.reply, time: "刚刚" },
@@ -206,6 +220,7 @@ export default function Messages({ messages, setMessages, role, onDeleteThread }
           role={role}
           onClose={closeChat}
           onUpdateHistory={(updater) => updateHistory(activeChat.id, updater)}
+          buildContext={buildContext}
         />
       )}
     </>
@@ -242,7 +257,7 @@ function InlineAIChat({ role, history, inputText, isThinking, isPolishing, expan
                 <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white">
                   <Bot size={18} />
                 </div>
-                <span className="font-bold text-sm text-slate-800">ERP AI 助手</span>
+                <span className="font-bold text-sm text-slate-800">AI 助手</span>
                 <span className="text-[10px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full font-bold">AI</span>
               </div>
               <button
@@ -332,7 +347,7 @@ function InlineAIChat({ role, history, inputText, isThinking, isPolishing, expan
 /* ================================================================
    ChatView — full chat panel (modal on desktop, fullscreen on mobile)
    ================================================================ */
-function ChatView({ chat, history, role, onClose, onUpdateHistory }) {
+function ChatView({ chat, history, role, onClose, onUpdateHistory, buildContext }) {
   const [inputText, setInputText] = useState("");
   const [isPolishing, setIsPolishing] = useState(false);
   const [isAiThinking, setIsAiThinking] = useState(false);
@@ -367,7 +382,8 @@ function ChatView({ chat, history, role, onClose, onUpdateHistory }) {
             content: m.content,
           }));
 
-        const data = await api.post("/ai/chat", { prompt: text, history: messageHistory });
+        const ctx = buildContext ? buildContext() : "";
+        const data = await api.post("/ai/chat", { prompt: ctx + text, history: messageHistory });
 
         onUpdateHistory((prev) => [
           ...prev.filter((m) => m.id !== tempId),
